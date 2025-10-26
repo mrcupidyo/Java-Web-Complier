@@ -4,23 +4,39 @@ import { executeCode } from "../api";
 
 const Output = ({ editorRef, language }) => {
   const toast = useToast();
-  const [output, setOutput] = useState(null);
+  const [output, setOutput] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isError, setIsError] = useState(false);
 
   const runCode = async () => {
     const sourceCode = editorRef.current.getValue();
     if (!sourceCode) return;
+
     try {
       setIsLoading(true);
-      const { run: result } = await executeCode(language, sourceCode);
-      setOutput(result.output.split("\n"));
-      result.stderr ? setIsError(true) : setIsError(false);
-    } catch (error) {
-      console.log(error);
+      setIsError(false);
+
+      // Call backend
+      const response = await executeCode(language, sourceCode);
+
+      // Adjust according to your backend structure
+      const run = response?.data?.run || response?.run;
+
+      if (!run || !run.output) {
+        setOutput(["No output received"]);
+        return;
+      }
+
+      const outputStr =
+        typeof run.output === "string" ? run.output : JSON.stringify(run.output);
+      setOutput(outputStr.split("\n"));
+    } catch (err) {
+      console.error(err);
+      setIsError(true);
+      setOutput([err.message || "Error executing code"]);
       toast({
         title: "An error occurred.",
-        description: error.message || "Unable to run code",
+        description: err.message || "Unable to run code",
         status: "error",
         duration: 6000,
       });
@@ -50,12 +66,14 @@ const Output = ({ editorRef, language }) => {
         border="1px solid"
         borderRadius={4}
         borderColor={isError ? "red.500" : "#333"}
+        overflowY="auto"
       >
-        {output
+        {output.length > 0
           ? output.map((line, i) => <Text key={i}>{line}</Text>)
           : 'Click "Run Code" to see the output here'}
       </Box>
     </Box>
   );
 };
+
 export default Output;
